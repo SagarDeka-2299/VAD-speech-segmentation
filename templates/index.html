@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waveform Region Highlighter</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* Custom styles for a better look and feel */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Style for the wavesurfer regions */
+        region.wavesurfer-region {
+            background-color: rgba(250, 204, 21, 0.4) !important; /* yellow-300 with 40% opacity */
+            border-left: 2px solid #FBBF24; /* yellow-400 */
+            border-right: 2px solid #FBBF24; /* yellow-400 */
+            cursor: pointer !important;
+            z-index: 3 !important; /* Ensure regions are above the waveform */
+        }
+        /* Style for the playhead cursor */
+        wave.wavesurfer-cursor {
+            border-right-color: #f87171 !important; /* red-400 */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-4xl bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 md:p-8 space-y-6">
+        <div class="text-center">
+            <h1 class="text-2xl md:text-3xl font-bold text-indigo-600 dark:text-indigo-400">Audio Waveform Highlighter</h1>
+            <p class="text-gray-500 dark:text-gray-400 mt-2">Upload a .wav file, see its waveform, and highlight detected speech segments.</p>
+        </div>
+
+        <div class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-6 text-center">
+            <input type="file" id="file-input" class="hidden" accept=".wav">
+            <label for="file-input" id="file-label" class="cursor-pointer text-indigo-500 font-medium">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 mx-auto mb-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                <span id="file-name-display">Choose a .wav file</span>
+            </label>
+        </div>
+
+        <div id="status-box" class="hidden p-3 rounded-lg text-center text-sm"></div>
+
+        <div id="waveform" class="w-full h-32 bg-gray-200 dark:bg-gray-700 rounded-lg overflow-hidden">
+            </div>
+
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <button id="play-pause-btn" disabled class="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all">
+                <svg id="play-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <svg id="pause-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Play</span>
+            </button>
+            <button id="submit-btn" disabled class="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Submit for Analysis</span>
+            </button>
+        </div>
+        
+        <div class="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row items-center justify-center gap-6">
+            <div class="w-full sm:w-1/2">
+                <label for="vad-model-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300">VAD Model</label>
+                <select id="vad-model-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                    <option value="silero">Silero (Fast, Good)</option>
+                    <option value="pyannote">Pyannote (Slower, More Accurate)</option>
+                </select>
+            </div>
+             <div class="w-full sm:w-1/2">
+                <label for="split-size-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Split Size (seconds)</label>
+                <input type="number" id="split-size-input" value="0" min="0" class="mt-1 block w-full pl-3 pr-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="0 for no splitting">
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
+    <script src="https://unpkg.com/wavesurfer.js@7/dist/plugins/regions.min.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Element References ---
+            const fileInput = document.getElementById('file-input');
+            const fileNameDisplay = document.getElementById('file-name-display');
+            const waveformContainer = document.getElementById('waveform');
+            const statusBox = document.getElementById('status-box');
+            const playPauseBtn = document.getElementById('play-pause-btn');
+            const playPauseBtnText = playPauseBtn.querySelector('span');
+            const playIcon = document.getElementById('play-icon');
+            const pauseIcon = document.getElementById('pause-icon');
+            const submitBtn = document.getElementById('submit-btn');
+            const vadModelSelect = document.getElementById('vad-model-select');
+            const splitSizeInput = document.getElementById('split-size-input');
+            let file_loaded=false
+
+            splitSizeInput.addEventListener('input', () => {
+                const size = parseInt(splitSizeInput.value, 10);
+                if (size < 0) {
+                    splitSizeInput.value = 0;
+                }
+                drawSplits(size);
+            });
+
+            // --- Wavesurfer Initialization ---
+            const wsRegions = WaveSurfer.Regions.create({});
+            const wavesurfer = WaveSurfer.create({
+                container: waveformContainer,
+                waveColor: '#6366F1',
+                progressColor: '#4F46E5',
+                cursorWidth: 2,
+                barWidth: 3,
+                barGap: 2,
+                barRadius: 3,
+                height: 128,
+                responsive: true,
+                plugins: [wsRegions]
+            });
+
+            function drawSplits(size){
+                console.log(`Drawing splits every ${size} seconds`);
+                if (size <= 0 || !file_loaded) {
+                    return;
+                }
+                console.log('Clearing previous splits');
+                Object.values(wsRegions.getRegions()).forEach(region => {
+                    if (region.id.startsWith('split-')) {
+                        region.remove();
+                    }
+                });
+                const duration = wavesurfer.getDuration();
+                for (let i = size; i < duration; i+=size) {
+                    wsRegions.addRegion({
+                        id: `split-${i}`,
+                        start: i,
+                        color: 'rgba(250, 21, 21, 1)',
+                        drag: false,
+                        resize: false
+                    });
+                }
+            }
+
+
+            // --- Helper Functions ---
+            const showStatus = (message, type = 'info') => {
+                statusBox.textContent = message;
+                statusBox.className = 'p-3 rounded-lg text-center text-sm'; // Reset
+                switch (type) {
+                    case 'success': statusBox.classList.add('bg-green-100', 'text-green-800', 'dark:bg-green-900', 'dark:text-green-200'); break;
+                    case 'error': statusBox.classList.add('bg-red-100', 'text-red-800', 'dark:bg-red-900', 'dark:text-red-200'); break;
+                    default: statusBox.classList.add('bg-blue-100', 'text-blue-800', 'dark:bg-blue-900', 'dark:text-blue-200'); break;
+                }
+                statusBox.classList.remove('hidden');
+            };
+
+            const hideStatus = () => statusBox.classList.add('hidden');
+            
+            const updatePlayButtonState = (isPlaying) => {
+                playPauseBtnText.textContent = isPlaying ? 'Pause' : 'Play';
+                playIcon.classList.toggle('hidden', isPlaying);
+                pauseIcon.classList.toggle('hidden', !isPlaying);
+            };
+
+            // --- Event Listeners ---
+            fileInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    fileNameDisplay.textContent = file.name;
+                    wavesurfer.load(URL.createObjectURL(file));
+                    showStatus('Loading waveform...', 'info');
+                    playPauseBtn.disabled = true;
+                    submitBtn.disabled = true;
+                }
+            });
+
+            wavesurfer.on('ready', () => {
+                file_loaded=true
+                wsRegions.clearRegions();
+                drawSplits(parseInt(splitSizeInput.value, 0));
+                hideStatus();
+                playPauseBtn.disabled = false;
+                submitBtn.disabled = false;
+                updatePlayButtonState(false);
+            });
+            wavesurfer.on('error', (err) => showStatus(`Error: ${err.message}`, 'error'));
+            wavesurfer.on('play', () => updatePlayButtonState(true));
+            wavesurfer.on('pause', () => updatePlayButtonState(false));
+            wavesurfer.on('finish', () => updatePlayButtonState(false));
+
+            playPauseBtn.addEventListener('click', () => wavesurfer.playPause());
+
+            submitBtn.addEventListener('click', async () => {
+                submitBtn.disabled = true;
+                playPauseBtn.disabled = true;
+
+                try {
+                    const file = fileInput.files[0];
+                    if (!file) {
+                        showStatus('Please select a file first.', 'error');
+                        return;
+                    }
+
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    // Append the new input values to the form data
+                    formData.append('vad_model', vadModelSelect.value);
+                    formData.append('split_size', splitSizeInput.value);
+
+                    showStatus('Analyzing audio... please wait.', 'info');
+
+                    const response = await fetch('/analyze', {
+                        method: 'POST',
+                        body: formData,
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.detail || 'Server analysis failed.');
+                    }
+
+                    const regionsData = await response.json();
+                    wsRegions.clearRegions();
+
+                    drawSplits(parseInt(splitSizeInput.value, 0));
+
+                    regionsData.forEach(region => {
+                        wsRegions.addRegion({
+                            start: region.start,
+                            end: region.end,
+                            color: 'rgba(250, 204, 21, 0.3)',
+                            drag: false,
+                            resize: false
+                        });
+                    });
+
+                    showStatus(`Success! ${regionsData.length} speech regions have been highlighted.`, 'success');
+
+                } catch (error) {
+                    showStatus(`Error: ${error.message}`, 'error');
+                    console.error('Analysis failed:', error);
+                } finally {
+                    submitBtn.disabled = false;
+                    playPauseBtn.disabled = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
